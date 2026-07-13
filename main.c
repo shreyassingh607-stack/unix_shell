@@ -72,7 +72,6 @@ int lsh_cd(char **args)
 int lsh_help(char **args)
 {
   int i;
-  printf("Stephen Brennan's LSH\n");
   printf("Type program names and arguments, and hit enter.\n");
   printf("The following are built in:\n");
 
@@ -153,19 +152,6 @@ int lsh_execute(char **args)
  */
 char *lsh_read_line(void)
 {
-#ifdef LSH_USE_STD_GETLINE
-  char *line = NULL;
-  ssize_t bufsize = 0; // have getline allocate a buffer for us
-  if (getline(&line, &bufsize, stdin) == -1) {
-    if (feof(stdin)) {
-      exit(EXIT_SUCCESS);  // We received an EOF
-    } else  {
-      perror("lsh: getline\n");
-      exit(EXIT_FAILURE);
-    }
-  }
-  return line;
-#else
 #define LSH_RL_BUFSIZE 1024
   int bufsize = LSH_RL_BUFSIZE;
   int position = 0;
@@ -201,7 +187,6 @@ char *lsh_read_line(void)
       }
     }
   }
-#endif
 }
 
 #define LSH_TOK_BUFSIZE 64
@@ -262,8 +247,8 @@ void lsh_loop(void)
     free(line);
     free(args);
   } while (status);
-}
 
+}
 /**
    @brief Main entry point.
    @param argc Argument count.
