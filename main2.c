@@ -5,6 +5,90 @@
 #include <sys/types.h>
 #include <string.h>
 
+int no_pipes_launch(char*** args){
+    pid_t pid;
+
+    pid = fork();
+    if(pid == 0){
+        if(execvp(args[0][0],args[0]) == -1){
+            perror("nsh : error");
+            exit(EXIT_FAILURE);
+        }
+        exit(EXIT_FAILURE);
+    }else if(pid < 0){
+        perror("nsh");
+    }else{
+        waitpid(pid,NULL,0);
+    }
+
+    return 1;
+
+}
+
+int nsh_launch(char*** args,int* num){
+    int num_pipes = *num - 1;
+    if(num_pipes == 0){
+        return no_pipes_launch(args);
+    }
+    int pipes[num_pipes][2];
+    pid_t pids[*num];
+
+    for(int i = 0 ; i < num_pipes ; ++i){
+        if(pipe(pipes[i]) == -1){
+            perror("nsh : pipe");
+            return 1;
+        }
+    }
+
+    for(int i = 0 ; i < *num ; ++i){
+        pids[i] = fork();
+
+        if(pids[i] == 0){
+            if(i > 0){
+                dup2(pipes[i-1][0],STDIN_FILENO);
+            }
+
+            if(i < *num - 1){
+                dup2(pipes[i][1],STDOUT_FILENO);
+            }
+
+            for(int j = 0 ; j < num_pipes ; ++j){
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            execvp(args[i][0],args[i]);
+
+            perror("nsh");
+            exit(EXIT_FAILURE);
+        }
+
+        if(pids[i] < 0){
+            perror("nsh : fork");
+            return 1;
+        }
+    }
+
+    for(int i = 0 ; i < num_pipes ; ++i){
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    for(int i = 0 ; i < *num ; ++i){
+        waitpid(pids[i],NULL,0);
+    }
+
+    return 1;
+}
+
+int nsh_execute(char*** args,int* num){
+    int i;
+
+    if(*num == 0) return 1; //empty command
+
+    return nsh_launch(args,num);
+}
+
 char* nsh_read_line(){
 #define NSH_RL_BUFSIZE 1024
     int bufsize = NSH_RL_BUFSIZE;
@@ -21,7 +105,7 @@ char* nsh_read_line(){
         c = getchar();
 
         if(c == EOF){
-            exit(EXIT_FAILURE);
+            exit(EXIT_SUCCESS);
         }
         else if(c == '\n'){
             buffer[position] = '\0';
@@ -108,12 +192,16 @@ void nsh_loop(){
     int status;
 
     do{
-        printf(">");
+        printf("nsh shell >");
         line = nsh_read_line();
         comms = nsh_split_line(line,&num_comms);
         args = nsh_split_comms(comms,&num_comms);
-        status = lsh_execute(args);
+        status = nsh_execute(args,&num_comms);
 
+        for(int i = 0; args[i] != NULL ; ++i){
+            free(args[i]);
+        }
+        free(args);
         free(line);
         free(comms);
 
